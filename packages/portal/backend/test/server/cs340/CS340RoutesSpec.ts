@@ -71,6 +71,7 @@ describe("CS340: Routes", () => {
         await Test.prepareAll();
         await Test.prepareAssignment();
         await Test.prepareAssignment2();
+        await Test.prepareAssignmentTeam2();
 
         Config.getInstance().setProp(ConfigKey.name, 'cs340');
         Config.getInstance().setProp(ConfigKey.org, Config.getInstance().getProp(ConfigKey.testorg));
@@ -111,8 +112,8 @@ describe("CS340: Routes", () => {
 
     it("Clean up stale repos.", async function() {
         Log.test("Cleaning up stale repositories...");
-        await deleteStale();
-    }).timeout(2 * TIMEOUT);
+        await Test.deleteStaleRepositories();
+    }).timeout(5 * TIMEOUT);
 
     it("Should be able to get all deliverables.", async function() {
         let response = null;
@@ -646,7 +647,7 @@ describe("CS340: Routes", () => {
         expect(response).to.not.be.null;
         expect(response.status).to.be.equal(200);
         expect(response.body.response).to.be.not.null;
-        expect(response.body.response.id).to.be.equal(Test.ASSIGNID1 + "_" + Test.REALUSER1.id);
+        expect(response.body.response.id).to.be.equal(Test.ASSIGNID1 + "__" + Test.REALUSER1.id);
     });
 
     it("Should be able release grades of an assignment.", async function() {

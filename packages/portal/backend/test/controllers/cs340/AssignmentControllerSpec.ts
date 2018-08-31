@@ -80,8 +80,14 @@ describe("CS340: AssignmentController", () => {
 
         // create assignment Deliverables
         await Test.prepareAssignment();
+        await Test.prepareAssignmentTeam();
 
         // Log.info("Successfully created new Assignment Deliverable for testing");
+        it("Clean stale repositories", async function() {
+            Log.info("Cleaning stale repositories");
+            await Test.deleteStaleRepositories();
+            Log.info("Cleaned all stale information");
+        }).timeout(5 * TIMEOUT);
     });
 
     beforeEach(() => {
@@ -419,12 +425,6 @@ describe("CS340: AssignmentController", () => {
 
         after(function() {
             Config.getInstance().setProp(ConfigKey.org, ORIGINAL_ORG);
-
-            it("Clean stale repositories", async function() {
-                Log.info("Cleaning stale repositories");
-                await deleteStale();
-                Log.info("Cleaned all stale information");
-            }).timeout(5 * TIMEOUT);
         });
 
         beforeEach(function() {
@@ -543,7 +543,7 @@ describe("CS340: AssignmentController", () => {
                 ]
             };
 
-            let success = await ac.setAssignmentGrade(Test.ASSIGNID0 + "_" + Test.REALUSER1.id,
+            let success = await ac.setAssignmentGrade(Test.ASSIGNID0 + "__" + Test.REALUSER1.id,
                 Test.ASSIGNID0, newAssignmentGrade, "testBot");
 
             expect(success).to.be.true;
@@ -630,112 +630,130 @@ describe("CS340: AssignmentController", () => {
     });
 
 
-    /*
-        ========= IMPORTED CODE FROM GITHUBACTIONSPEC ===========
-     */
+    describe("Students adding/dropping course in the middle of the course.", () => {
+        before(async function() {
+            Config.getInstance().setProp(ConfigKey.org, Config.getInstance().getProp(ConfigKey.testorg));
+            gha = new GitHubActions();
+        });
 
-    const OLDORG = Config.getInstance().getProp(ConfigKey.org);
+        after(async function() {
+            Config.getInstance().setProp(ConfigKey.org, ORIGINAL_ORG);
+        });
 
-    async function deleteStale(): Promise<true> {
-        Log.test('GitHubActionSpec::deleteStale() - start');
-        let gh: GitHubActions = new GitHubActions();
-        let repos = await gh.listRepos();
-        expect(repos).to.be.an('array');
-        // expect(repos.length > 0).to.be.true; // test org can be empty
+        beforeEach(async function() {
+            const exec = Test.runSlowTest();
 
-        // delete test repos if needed
-        for (const repo of repos as any) {
-            for (const r of TESTREPONAMES) {
-                if (repo.name === r) {
-                    Log.info('Removing stale repo: ' + repo.name);
-                    let val = await gh.deleteRepo(r);
-                    await gh.delay(DELAY_SHORT);
-                    // expect(val).to.be.true;
-                }
+            if (exec) {
+                Log.test("AssignmentControllerSpec::slowTests - running; this may take a while...");
+            } else {
+                Log.test("AssignmentControllerSpec::slowTests - skipping (would take multiple minutes otherwise)");
+                this.skip();
             }
-        }
+        });
 
-        repos = await gh.listRepos();
-        // delete test repos if needed
-        for (const repo of repos as any) {
-            Log.info('Evaluating repo: ' + repo.name);
-            if (repo.name.indexOf('TEST__X__') === 0        ||
-                repo.name.startsWith(REPONAME)              ||
-                repo.name.startsWith(REPONAME2)             ||
-                repo.name.startsWith("test_")               ||
-                repo.name.startsWith(Test.ASSIGNID0 + "_")  ||
-                repo.name.startsWith(Test.ASSIGNID1 + "_")) {
-                Log.info('Removing stale repo: ' + repo.name);
-                let val = await gh.deleteRepo(repo.name);
-                // expect(val).to.be.true;
-                let teamName = repo.name.substr(15);
-                Log.info('Adding stale team name: ' + repo.name);
-                TESTTEAMNAMES.push(teamName);
-            }
-        }
+        it("Should be able to reset and clean everything up.", async () => {
+            await Test.deleteStaleRepositories();
+            await resetData();
+        }).timeout(numberOfStudents * TIMEOUT);
 
-        // delete teams if needed
-        let teams = await gh.listTeams();
-        expect(teams).to.be.an('array');
-        // expect(teams.length > 0).to.be.true; // can have 0 teams
-        Log.test('All Teams: ' + JSON.stringify(teams));
-        Log.test('Stale Teams: ' + JSON.stringify(TESTTEAMNAMES));
-        for (const team of teams as any) {
-            // Log.info('Evaluating team: ' + JSON.stringify(team));
-            let done = false;
-            for (const t of TESTTEAMNAMES) {
-                if (team.name === t                             ||
-                    team.name.startsWith(Test.ASSIGNID0 + "_"   ||
-                    team.name.startsWith(Test.ASSIGNID1 + "_"))
-                ) {
-                    Log.test("Removing stale team: " + team.name);
-                    let val = await gh.deleteTeam(team.id);
-                    await gh.delay(DELAY_SHORT);
-                    done = true;
-                }
-            }
-            if (done === false) {
-                if (team.name.startsWith(TEAMNAME) === true) {
-                    Log.test("Removing stale team: " + team.name);
-                    let val = await gh.deleteTeam(team.id);
-                    await gh.delay(DELAY_SHORT);
-                }
-            }
-        }
-        Log.test('GitHubActionSpec::deleteStale() - done');
-        return true;
-    }
+        it("Should be able to create repositories for an assignment.", async () => {
+            let success = await ac.initializeAllRepositories(Test.ASSIGNID0);
+            expect(success).to.be.true;
+        }).timeout(numberOfStudents * TIMEOUT);
 
+        it("Should be able to see an assignment status changing after a new student joins.", async () => {
+            let assignStatus: {assignmentStatus: AssignmentStatus,
+                totalStudents: number, studentRepos: number} = await ac.updateAssignmentStatus(Test.ASSIGNID0);
+
+            expect(assignStatus.assignmentStatus).to.be.equal(AssignmentStatus.CREATED);
+            let totalStudentCount   = assignStatus.totalStudents;
+            let studentReposCount   = assignStatus.studentRepos;
+
+            let p = Test.createPerson(Test.REALUSER3.id, Test.REALUSER3.csId, Test.REALUSER3.github, "student");
+            await db.writePerson(p);
+
+            let newAssignStatus: {assignmentStatus: AssignmentStatus,
+                totalStudents: number, studentRepos: number} = await ac.updateAssignmentStatus(Test.ASSIGNID0);
+
+            expect(newAssignStatus.assignmentStatus).to.be.equal(AssignmentStatus.INACTIVE);
+            expect(newAssignStatus.totalStudents).to.be.greaterThan(totalStudentCount);
+            expect(newAssignStatus.studentRepos).to.be.equal(studentReposCount);
+        }).timeout(numberOfStudents * TIMEOUT);
+
+        it("Should be able to re-create repositories, after a student has been added.", async () => {
+            let success = await ac.initializeAllRepositories(Test.ASSIGNID0);
+            expect(success).to.be.true;
+
+            let assignStatus: {assignmentStatus: AssignmentStatus,
+                totalStudents: number, studentRepos: number} = await ac.updateAssignmentStatus(Test.ASSIGNID0);
+
+            expect(assignStatus.assignmentStatus).to.be.equal(AssignmentStatus.CREATED);
+            expect(assignStatus.totalStudents).to.be.equal(assignStatus.studentRepos);
+        }).timeout(numberOfStudents * TIMEOUT);
+
+        it("Should be able to reset all the assignment and repositories.", async () => {
+            await resetData();
+            await Test.deleteStaleRepositories();
+        }).timeout(numberOfStudents * TIMEOUT);
+
+        it("Should be able to initialize and publish assignment repositories.", async () => {
+            await ac.initializeAllRepositories(Test.ASSIGNID0);
+            await ac.publishAllRepositories(Test.ASSIGNID0);
+
+            let assignStatus: {assignmentStatus: AssignmentStatus,
+                totalStudents: number, studentRepos: number} = await ac.updateAssignmentStatus(Test.ASSIGNID0);
+            expect(assignStatus.assignmentStatus).to.equal(AssignmentStatus.RELEASED);
+            expect(assignStatus.totalStudents).to.equal(assignStatus.studentRepos);
+        }).timeout(numberOfStudents * TIMEOUT);
+
+        it("Should be able see an updated assignment status after a student joins.", async () => {
+            await ac.initializeAllRepositories(Test.ASSIGNID0);
+            await ac.publishAllRepositories(Test.ASSIGNID0);
+
+            let assignStatus: {assignmentStatus: AssignmentStatus,
+                totalStudents: number, studentRepos: number} = await ac.updateAssignmentStatus(Test.ASSIGNID0);
+            expect(assignStatus.assignmentStatus).to.equal(AssignmentStatus.RELEASED);
+            expect(assignStatus.totalStudents).to.equal(assignStatus.studentRepos);
+
+            let p = Test.createPerson(Test.REALUSER3.id, Test.REALUSER3.csId, Test.REALUSER3.github, "student");
+            await db.writePerson(p);
+
+            let assignStatus2: {assignmentStatus: AssignmentStatus,
+                totalStudents: number, studentRepos: number} = await ac.updateAssignmentStatus(Test.ASSIGNID0);
+            expect(assignStatus2.assignmentStatus).to.be.equal(AssignmentStatus.INACTIVE);
+            expect(assignStatus2.totalStudents).to.not.be.equal(assignStatus.totalStudents);
+        }).timeout(numberOfStudents * TIMEOUT);
+
+        it("Should be able to initialize repositories again, after a student has been added to a published assignment.", async () => {
+            await ac.initializeAllRepositories(Test.ASSIGNID0);
+
+            let assignStatus: {assignmentStatus: AssignmentStatus,
+                totalStudents: number, studentRepos: number} = await ac.updateAssignmentStatus(Test.ASSIGNID0);
+            expect(assignStatus.assignmentStatus).to.equal(AssignmentStatus.CREATED);
+            expect(assignStatus.totalStudents).to.equal(assignStatus.studentRepos);
+        }).timeout(numberOfStudents * TIMEOUT);
+
+        it("Should be able to release repositories again, after a student has been added to a published assignment.", async () => {
+            await ac.publishAllRepositories(Test.ASSIGNID0);
+
+            let assignStatus: {assignmentStatus: AssignmentStatus,
+                totalStudents: number, studentRepos: number} = await ac.updateAssignmentStatus(Test.ASSIGNID0);
+            expect(assignStatus.assignmentStatus).to.equal(AssignmentStatus.RELEASED);
+            expect(assignStatus.totalStudents).to.equal(assignStatus.studentRepos);
+        }).timeout(numberOfStudents * TIMEOUT);
+    });
 });
 
-const REPONAME = getProjectPrefix() + Test.ASSIGNID0;
-const REPONAME2 = getProjectPrefix() + Test.ASSIGNID1;
-const REPONAME3 = getProjectPrefix() + Test.REPONAME3;
-const TEAMNAME = getTeamPrefix() + Test.TEAMNAME1;
+async function resetData() {
+    // clear stale data
+    let db = DatabaseController.getInstance();
+    await db.clearData();
 
-let TESTREPONAMES = [
-    "testtest__repo1",
-    "secap_cpscbot",
-    "secap_rthse2",
-    "secap_ubcbot",
-    "secap_testtest__repo1",
-    "TESTrepo1",
-    "TESTrepo2",
-    "TESTrepo3",
-    Test.REALUSER1.id + "_grades",
-    Test.REALUSER2.id + "_grades",
-];
-
-let TESTTEAMNAMES = [
-    "rtholmes",
-    "ubcbot",
-    "rthse2",
-    "cpscbot",
-    "TEST__X__t_TESTteam1",
-    "TESTteam1",
-    "TESTteam2",
-    "TESTteam3"
-];
+    await Test.preparePeople();
+    await Test.prepareAuth();
+    await Test.prepareAssignment();
+    await Test.prepareAssignment2();
+}
 
 function getProjectPrefix(): string {
     return "TEST__X__secap_";

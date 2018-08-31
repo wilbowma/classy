@@ -211,7 +211,6 @@ export class AssignmentController {
             return false;
         }
 
-        let assignInfo: AssignmentInfo = deliv.custom;
         // get all students
         let allPeople: Person[] = await this.pc.getAllPeople();
         let allStudents: Person[] = [];
@@ -242,8 +241,8 @@ export class AssignmentController {
         for(const person of peopleList) {
             if(typeof personVerification[person.name] === 'undefined') personVerification[person.name] = person;
         }
+        let assignInfo: AssignmentInfo;
 
-        assignInfo = (await this.db.getDeliverable(delivId) as Deliverable).custom;
         for (const student of allStudents) {
             // verify student is a person in the org, if not, skip it (DATABASE INCONSISTENCY!?)
             if(typeof personVerification[student.githubId] === 'undefined') {
@@ -267,6 +266,10 @@ export class AssignmentController {
                     teamName = deliv.teamPrefix;
                 }
                 teamName += student.githubId;
+
+                // let computedNames = await this.cc.computeNames(deliv, [student]);
+                // let teamName: string = computedNames.teamName;
+
                 // verify if the team exists or not
                 studentTeam = await this.tc.getTeam(teamName);
                 if (studentTeam === null) {
@@ -302,7 +305,17 @@ export class AssignmentController {
 
             // attempt to provision the repository,
             // if success, add it to the AssignmentInfo
-            let provisionedRepo = await this.createAssignmentRepo(repoName, delivId, [studentTeam]);
+            assignInfo = (await this.db.getDeliverable(delivId) as Deliverable).custom;
+            let repoList: string[] = assignInfo.repositories;
+            let provisionedRepo: Repository;
+            if(!repoList.includes(repoName)) {
+                provisionedRepo = await this.createAssignmentRepo(repoName, delivId, [studentTeam]);
+                await this.gha.delay(200);
+            } else {
+                continue;
+            }
+
+            // let provisionedRepo = await this.createAssignmentRepo(repoName, delivId, [studentTeam]);
 
             if (provisionedRepo !== null) {
                 if (assignInfo.repositories === null || typeof assignInfo.repositories === 'undefined') assignInfo.repositories = [];
@@ -315,6 +328,8 @@ export class AssignmentController {
                 anyError = true;
             }
         }
+
+        assignInfo = (await this.db.getDeliverable(delivId) as Deliverable).custom;
 
         // once you are done, update the assignment information
         if (!anyError) {
@@ -713,6 +728,7 @@ export class AssignmentController {
         for (const student of allStudents) {
             if (typeof personVerification[student.githubId] === 'undefined') {
                 Log.warn("Skipping student: " + student.id + " as they are missing from Github.");
+                totalStudentCount--;
                 continue;
             }
             if (typeof studentRepoMapping[student.id] === 'undefined') {
