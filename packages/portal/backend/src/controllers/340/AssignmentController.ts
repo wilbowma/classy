@@ -1122,7 +1122,7 @@ export class AssignmentController {
                 const gradeSubQuestion: SubQuestionGrade = studentGrade.subQuestion[j];
                 let rowName = assignmentQuestion.name + " - " + assignmentSubQuestion.name;
                 rowName = rowName.trim();
-                rowName = rownName.replace(/\r?\n|\r/g, " ");
+                rowName = rowName.replace(/\r?\n|\r/g, " ");
                 const newRowRec = [rowName, String(gradeSubQuestion.grade),
                     String(assignmentSubQuestion.outOf), gradeSubQuestion.feedback];
                 tableInfo.push(newRowRec);
