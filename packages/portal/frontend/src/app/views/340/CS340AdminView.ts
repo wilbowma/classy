@@ -34,6 +34,7 @@ const WARN_EMPTY_FIELD: string = "empty field";
 export class CS340AdminView extends AdminView {
 
     private grading_selectedDeliverable = "";
+    private last_grading_studentID_array: string[] = [];
 
     public renderPage(name: string, opts: {}) {
         Log.info('CS340AdminView::renderPage( ' + name + ', ... ) - start; options: ' + JSON.stringify(opts));
@@ -1032,6 +1033,9 @@ export class CS340AdminView extends AdminView {
 
         const st = new SortableTable(tableHeaders, "#gradesListTable");
 
+        // const repoRequestArray: Promise<Response>[] = [];
+        this.last_grading_studentID_array = []; // TODO [Jonathan]: Perhaps find an alternative to better cache this
+
         // for every team, create a new row
         for (const teamTransport of filteredTeams) {
             const newRow: TableCell[] = [];
@@ -1047,6 +1051,7 @@ export class CS340AdminView extends AdminView {
             // ASSUMPTION: If students are on a team for a deliverable, they should all have the same grade
             const foundGrade = false;
             const studentId: string = teamTransport.people[0];
+            this.last_grading_studentID_array.push(studentId); // TODO [Jonathan]: Find a better way to do this
             let newEntry: TableCell;
 
             // TODO: Add the repo link (submission link)
@@ -1107,6 +1112,64 @@ export class CS340AdminView extends AdminView {
             st.addRow(newRow);
         }
 
+        // const repoResponseArray: Response[] = await Promise.all(repoRequestArray);
+
+        // for(let i = 0; i < repoResponseArray.length; i++) {
+            //
+            // const repoResponse: Response = repoResponseArray[i];
+            // const studentId: string = filteredTeams[i].
+            // if (repoResponse.status !== 200) {
+            //     Log.error("CS340AdminView::renderStudentGradeDeliverable(..) - Error: unable to find a repo for the team");
+            //     continue;
+            // }
+            //
+            // const repoJson = await repoResponse.json();
+            // const repoTransport: RepositoryTransport = repoJson.response;
+            //
+            // const repoEntry: TableCell = {
+            //     value: repoTransport.URL,
+            //     html:  "<a href='" + repoTransport.URL + "'> Link </a>"
+            // };
+            //
+            // newRow.push(repoEntry);
+            //
+            // let completelyGraded: boolean;
+            // if (typeof gradeMapping[studentId] === 'undefined') {
+            //     completelyGraded = false;
+            // } else {
+            //     completelyGraded = this.checkIfCompletelyGraded(gradeMapping[studentId]);
+            // }
+            //
+            // if (typeof deliv.custom.assignment.status !== "undefined" && deliv.custom.assignment.status !== AssignmentStatus.CLOSED) {
+            //     newEntry = {
+            //         value: "---",
+            //         html:  "<span>---</span>"
+            //     };
+            // } else {
+            //     if (typeof gradeMapping[studentId] !== 'undefined' && completelyGraded) {
+            //         // we have a grade for this team
+            //         newEntry = {
+            //             value: gradeMapping[studentId].score,
+            //             html:  "<a onclick='window.myApp.view.transitionGradingPage(\"" +
+            //                 studentMapping[studentId].id + "\", \"" + delivId + "\", true)' href='#'>" +
+            //                 gradeMapping[studentId].score.toString() + "/" +
+            //                 maxGrade + "</a>"
+            //         };
+            //     } else {
+            //         // we do not have a grade for this team
+            //         newEntry = {
+            //             value: "---",
+            //             html:  "<a onclick='window.myApp.view.transitionGradingPage(\"" +
+            //                 studentMapping[studentId].id + "\", \"" + delivId + "\", true)' href='#'> ---" + "</a>"
+            //         };
+            //     }
+            // }
+            //
+            // newRow.push(newEntry);
+            //
+            // st.addRow(newRow);
+        // }
+
         st.generate();
 
         UI.hideModal();
@@ -1134,6 +1197,9 @@ export class CS340AdminView extends AdminView {
         // }
         // const delivJson = await delivResponse.json();
         // const delivArray: Deliverable[] = delivJson.response;
+
+        this.last_grading_studentID_array = []; // TODO [Jonathan]: Perhaps find an alternative to better cache this
+
         const delivArray: Deliverable[] = await this.getDeliverables();
 
         const tableHeaders: TableHeader[] = [
@@ -1528,6 +1594,27 @@ export class CS340AdminView extends AdminView {
         submitButton.innerHTML = "Save Grade";
 
         gradingSectionElement!.appendChild(submitButton);
+
+        // calculate next person
+
+        if(this.last_grading_studentID_array.length > 0 && this.last_grading_studentID_array.length !== null) {
+            let nextId = "";
+            for(let i = 0; i < this.last_grading_studentID_array.length; i++) {
+                if(this.last_grading_studentID_array[i] === sid) {
+                    if(i + 1 < this.last_grading_studentID_array.length) {
+                        nextId = this.last_grading_studentID_array[i+1];
+                    }
+                    break;
+                }
+            }
+            if(nextId !== "") {
+                const nextButton = document.createElement("ons-button");
+                nextButton.setAttribute("onclick", 'window.myApp.view.transitionGradingPage(\"' +
+                    nextId + "\", \"" + delivId + '\", '+ isTeam +')'
+                );
+                nextButton.innerHTML = "Next";
+            }
+        }
     }
 
     public async submitGrade(completed: boolean = true): Promise<AssignmentGrade | null> {
@@ -1918,7 +2005,19 @@ export class CS340AdminView extends AdminView {
         UI.pushPage(Factory.getInstance().getHTMLPrefix() + '/GradingView.html', {
             sid:    sid,
             aid:    aid,
-            isTeam: isTeam
+            isTeam: isTeam,
+        });
+    }
+
+
+    public saveAndTransitionGradingPage(sid: string, aid: string, isTeam: boolean = false) {
+        // TODO: save first
+
+
+        UI.replacePage(Factory.getInstance().getHTMLPrefix() + '/GradingView.html', {
+            sid: sid,
+            aid: aid,
+            isTeam: isTeam,
         });
     }
 }
