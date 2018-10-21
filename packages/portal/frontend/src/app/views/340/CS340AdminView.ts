@@ -896,18 +896,22 @@ export class CS340AdminView extends AdminView {
 
         const teamsOptions = AdminView.getOptions();
         const teamsURL = this.remote + '/portal/admin/teams';
-        const teamsResponse = await fetch(teamsURL, teamsOptions);
+        const teamsPromise = fetch(teamsURL, teamsOptions);
 
         const studentOptions = AdminView.getOptions();
         const studentUrl = this.remote + '/portal/admin/students';
-        const studentResponse = await fetch(studentUrl, studentOptions);
+        const studentPromise = fetch(studentUrl, studentOptions);
 
         const gradesOptions = AdminView.getOptions();
         const gradesUrl: string = this.remote + '/portal/cs340/getAllGrades';
-        const gradesResponse = await fetch(gradesUrl, gradesOptions);
+        const gradesPromise = fetch(gradesUrl, gradesOptions);
+
+        const [teamsResponse, studentResponse, gradesResponse] = await Promise.all([teamsPromise,
+                                                                                    studentPromise,
+                                                                                    gradesPromise]);
 
         let requestStatus: boolean = true;
-
+1
         if (teamsResponse.status !== 200) {
             Log.error("CS340AdminView::renderStudentGradeDeliverable(..) - !200 received when fetching " +
                 "teams; code: " + teamsResponse.status);
@@ -1489,7 +1493,7 @@ export class CS340AdminView extends AdminView {
 
         // Create a "DID NOT COMPLETE" button
         const dncButton = document.createElement("ons-button");
-        dncButton.setAttribute("onclick", "window.myApp.view.submitGrade(false)");
+        dncButton.setAttribute("onclick", "window.myApp.view.submitReturn(false)");
         dncButton.setAttribute("style", "margin-left: 1em; background: red");
         dncButton.innerHTML = "No Submission";
         gradingSectionElement!.appendChild(dncButton);
@@ -1590,7 +1594,7 @@ export class CS340AdminView extends AdminView {
 
         // Create a Save Grade button
         const submitButton = document.createElement("ons-button");
-        submitButton.setAttribute("onclick", "window.myApp.view.submitGrade()");
+        submitButton.setAttribute("onclick", "window.myApp.view.submitReturn()");
         submitButton.innerHTML = "Save Grade";
 
         gradingSectionElement!.appendChild(submitButton);
@@ -1609,15 +1613,26 @@ export class CS340AdminView extends AdminView {
             }
             if(nextId !== "") {
                 const nextButton = document.createElement("ons-button");
-                nextButton.setAttribute("onclick", 'window.myApp.view.transitionGradingPage(\"' +
+                nextButton.setAttribute("onclick", 'window.myApp.view.saveAndTransitionGradingPage(\"' +
                     nextId + "\", \"" + delivId + '\", '+ isTeam +')'
                 );
                 nextButton.innerHTML = "Next";
+                gradingSectionElement!.appendChild(nextButton);
             }
         }
     }
 
-    public async submitGrade(completed: boolean = true): Promise<AssignmentGrade | null> {
+
+    // Wrapper to submit then return to grade view
+    public async submitReturn(completed: boolean = true): Promise<null> {
+        if(await this.submitGrade(completed)) {
+            UI.popPage();
+        }
+        return;
+    }
+
+
+    public async submitGrade(completed: boolean = true): Promise<boolean> {
         let errorStatus = false;
         let warnStatus = false;
         let warnComment: string = "";
@@ -1831,13 +1846,7 @@ export class CS340AdminView extends AdminView {
         //
         // UI.hideModal();
 
-        const savingSuccess = await this.submitGradeRecord(aid, targetStudentIds, questionArray);
-        if (savingSuccess) {
-            UI.popPage();
-            return null;
-        } else {
-            return null;
-        }
+        return await this.submitGradeRecord(aid, targetStudentIds, questionArray);
     }
 
     public async submitGradeRecord(aid: string, personIds: string[], questionArray: QuestionGrade[]): Promise<boolean> {
@@ -2010,9 +2019,11 @@ export class CS340AdminView extends AdminView {
     }
 
 
-    public saveAndTransitionGradingPage(sid: string, aid: string, isTeam: boolean = false) {
+    public async saveAndTransitionGradingPage(sid: string, aid: string, isTeam: boolean = false) {
         // TODO: save first
-
+        if(!await this.submitGrade()) {
+            return;
+        }
 
         UI.replacePage(Factory.getInstance().getHTMLPrefix() + '/GradingView.html', {
             sid: sid,
