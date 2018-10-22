@@ -911,7 +911,6 @@ export class CS340AdminView extends AdminView {
                                                                                     gradesPromise]);
 
         let requestStatus: boolean = true;
-1
         if (teamsResponse.status !== 200) {
             Log.error("CS340AdminView::renderStudentGradeDeliverable(..) - !200 received when fetching " +
                 "teams; code: " + teamsResponse.status);
@@ -1665,7 +1664,7 @@ export class CS340AdminView extends AdminView {
                     errorElements.length !== 1) {
                     // Display an error
                     Log.error("CS340View::submitGrade - Error: Page is malformed");
-                    return null;
+                    return false;
                 }
 
                 // Grab the elements
@@ -2022,6 +2021,7 @@ export class CS340AdminView extends AdminView {
     public async saveAndTransitionGradingPage(sid: string, aid: string, isTeam: boolean = false) {
         // TODO: save first
         if(!await this.submitGrade()) {
+            Log.warn("Unable to save grade; perhaps something went wrong?");
             return;
         }
 
