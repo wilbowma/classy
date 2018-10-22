@@ -1039,6 +1039,104 @@ export class CS340AdminView extends AdminView {
         // const repoRequestArray: Promise<Response>[] = [];
         this.last_grading_studentID_array = []; // TODO [Jonathan]: Perhaps find an alternative to better cache this
 
+        // Attempt to slow loading TODO: Check this (No sample testing data)
+        // <!------- START -------->
+        const repoPromises: Promise<Response>[] = [];
+
+        for(const teamTransport of filteredTeams) {
+            const repoOptions = AdminView.getOptions();
+            const repoUrl = this.remote + "/portal/cs340/getRepository/" + teamTransport.id;
+            repoPromises.push(fetch(repoUrl, repoOptions));
+        }
+
+        const repoResponses: Response[] = await Promise.all(repoPromises);
+
+        if(filteredTeams.length !== repoResponses.length) {
+            // Something went terribly wrong!
+            Log.error("CS340AdminView::renderStudentGradeDeliverable(..) - Filtered teams and Repository Count mismatch");
+            Log.warn("CS340AdminView::renderStudentGradeDeliverable(..) - FilteredTeams: " + filteredTeams.length +
+            "; RepoCount: " + repoResponses.length);
+            // TODO: do something!
+        }
+
+
+        for(let i = 0; i < filteredTeams.length; i++) {
+            let teamTransport = filteredTeams[i];
+            let repoResponse = repoResponses[i];
+
+            const newRow: TableCell[] = [];
+            for (const personId of teamTransport.people) {
+                newRow.push({value: personId, html: personId});
+            }
+
+            // handle uneven team sizes
+            for (let i = teamTransport.people.length; i < maxSize; i++) {
+                newRow.push({value: "", html: ""}); // blank, just so table sizes are consistent
+            }
+
+            // ASSUMPTION: If students are on a team for a deliverable, they should all have the same grade
+            const foundGrade = false;
+            const studentId: string = teamTransport.people[0];
+            this.last_grading_studentID_array.push(studentId); // TODO [Jonathan]: Find a better way to do this
+            let newEntry: TableCell;
+
+            if (repoResponse.status !== 200) {
+                Log.error("CS340AdminView::renderStudentGradeDeliverable(..) - Error: unable to find a repo for the team");
+                continue;
+            }
+
+            const repoJson = await repoResponse.json();
+            const repoTransport: RepositoryTransport = repoJson.response;
+
+            const repoEntry: TableCell = {
+                value: repoTransport.URL,
+                html:  "<a href='" + repoTransport.URL + "'> Link </a>"
+            };
+
+            newRow.push(repoEntry);
+
+            let completelyGraded: boolean;
+            if (typeof gradeMapping[studentId] === 'undefined') {
+                completelyGraded = false;
+            } else {
+                completelyGraded = this.checkIfCompletelyGraded(gradeMapping[studentId]);
+            }
+
+            if (typeof deliv.custom.assignment.status !== "undefined" && deliv.custom.assignment.status !== AssignmentStatus.CLOSED) {
+                newEntry = {
+                    value: "---",
+                    html:  "<span>---</span>"
+                };
+            } else {
+                if (typeof gradeMapping[studentId] !== 'undefined' && completelyGraded) {
+                    // we have a grade for this team
+                    newEntry = {
+                        value: gradeMapping[studentId].score,
+                        html:  "<a onclick='window.myApp.view.transitionGradingPage(\"" +
+                            studentMapping[studentId].id + "\", \"" + delivId + "\", true)' href='#'>" +
+                            gradeMapping[studentId].score.toString() + "/" +
+                            maxGrade + "</a>"
+                    };
+                } else {
+                    // we do not have a grade for this team
+                    newEntry = {
+                        value: "---",
+                        html:  "<a onclick='window.myApp.view.transitionGradingPage(\"" +
+                            studentMapping[studentId].id + "\", \"" + delivId + "\", true)' href='#'> ---" + "</a>"
+                    };
+                }
+            }
+
+            newRow.push(newEntry);
+            // TODO: Finish this up by rendering the rest of the page
+
+            st.addRow(newRow);
+        }
+        // <!-------  END  -------->
+
+        // This is the old code that is "slow" (this is sequential api calls!) TODO: Refactor this!
+        // <!------- START -------->
+/*
         // for every team, create a new row
         for (const teamTransport of filteredTeams) {
             const newRow: TableCell[] = [];
@@ -1114,6 +1212,8 @@ export class CS340AdminView extends AdminView {
 
             st.addRow(newRow);
         }
+*/
+        // <!-------  END  -------->
 
         // const repoResponseArray: Response[] = await Promise.all(repoRequestArray);
 
