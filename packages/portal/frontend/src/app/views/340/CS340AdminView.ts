@@ -1884,7 +1884,7 @@ export class CS340AdminView extends AdminView {
             Log.info("CS340View::submitGrade() - response from api " + response);
             if (response.status !== 200) {
                 const errResponse = await response.json();
-                Log.info("CS340AdminView::submitGrade() - error submitting grades, code: " +
+                Log.trace("CS340AdminView::submitGrade() - error submitting grades, code: " +
                     response.status + " error: " + response.statusText);
                 // alert(errResponse.error);
                 UI.showAlert(errResponse.error);
