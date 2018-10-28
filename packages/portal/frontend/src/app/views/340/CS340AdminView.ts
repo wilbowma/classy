@@ -1276,6 +1276,7 @@ export class CS340AdminView extends AdminView {
         st.generate();
 
         UI.hideModal();
+        this.last_grading_studentID_array.sort();
     }
 
     /**
