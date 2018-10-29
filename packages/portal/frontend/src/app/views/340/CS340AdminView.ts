@@ -951,7 +951,7 @@ export class CS340AdminView extends AdminView {
         const filteredTeams: TeamTransport[] = [];
         let maxSize = 1;
         for (const teamTransport of teamsTransport) {
-            if (teamTransport.delivId === delivId) {
+            if (teamTransport.delivId === delivId && !teamTransport.id.endsWith("_grades")) {
                 filteredTeams.push(teamTransport);
                 if (maxSize < teamTransport.people.length) {
                     maxSize = teamTransport.people.length;
