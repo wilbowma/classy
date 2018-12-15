@@ -1124,8 +1124,8 @@ export class AssignmentController {
                 let feedback: string = gradeSubQuestion.feedback;
                 feedback = feedback.trim();
                 feedback = feedback.replace(/\r?\n|\r/g, " ");
-                feedback = feedback.replace(/'/g, "\'");
-                feedback = feedback.replace(/"/g, "\"");
+                feedback = feedback.replace(/'/g, "");
+                feedback = feedback.replace(/"/g, "");
                 rowName = rowName.trim();
                 rowName = rowName.replace(/\r?\n|\r/g, " ");
                 const newRowRec = [rowName, String(gradeSubQuestion.grade),
