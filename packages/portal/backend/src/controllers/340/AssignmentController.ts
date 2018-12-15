@@ -1121,10 +1121,13 @@ export class AssignmentController {
                 const assignmentSubQuestion: SubQuestionGradingRubric = assignmentQuestion.subQuestions[j];
                 const gradeSubQuestion: SubQuestionGrade = studentGrade.subQuestion[j];
                 let rowName = assignmentQuestion.name + " - " + assignmentSubQuestion.name;
+                let feedback: string = gradeSubQuestion.feedback;
+                feedback = feedback.trim();
+                feedback = feedback.replace(/\r?\n|\r/g, " ");
                 rowName = rowName.trim();
                 rowName = rowName.replace(/\r?\n|\r/g, " ");
                 const newRowRec = [rowName, String(gradeSubQuestion.grade),
-                    String(assignmentSubQuestion.outOf), gradeSubQuestion.feedback];
+                    String(assignmentSubQuestion.outOf), feedback];
                 tableInfo.push(newRowRec);
                 totalReceived += gradeSubQuestion.grade * assignmentSubQuestion.weight;
                 totalPossible += assignmentSubQuestion.outOf * assignmentSubQuestion.weight;
