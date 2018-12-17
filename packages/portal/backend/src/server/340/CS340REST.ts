@@ -254,7 +254,8 @@ export default class CS340REST implements IREST {
 
         const teams: Team[] = await db.getTeamsForPerson(sid);
         for (const team of teams) {
-            if (team.delivId === delivid && team.personIds.includes(sid)) {
+            // NOTE: this removes the accidental _grades repository catching, which is invalid
+            if (team.delivId === delivid && team.personIds.includes(sid) && !team.id.endsWith("_grades")) {
                 const response: TeamTransport = {
                     id:      team.id,
                     delivId: delivid,
